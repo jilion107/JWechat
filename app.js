@@ -1,43 +1,39 @@
 var express = require('express');
 var path = require('path');
-var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var wechat = require('wechat');
-
-var routes = require('./routes/index');
-var users = require('./routes/users');
+var WechatAPI = require('wechat-api');
 var settings = require('./settings');
+var Msg = require('./dispatchers/messages');
 
 var app = express();
 var config = {
-  token : settings.token,
-  appid : settings.appid,
-  encodingAESKey : settings.encodingAESKey
+    token : settings.token,
+    appid : settings.appid,
+    encodingAESKey : settings.encodingAESKey,
+    appsecret: settings.appsecret,
+    manager: settings.manager
 }
+var api = new WechatAPI(config.appid, config.appsecret);
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
-// uncomment after placing your favicon in /public
-//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-//app.use('/', routes);
-//app.use('/users', users);
 app.use(express.query());
 app.use('/', wechat(config, function(req, res, next) {
-    // ΢��������Ϣ����req.weixin��
-    console.log(req.query.signature + "//" + req.query.timestamp);
     var info = req.weixin;
-    if (info.FromUserName === 'diaosi') {
-      res.reply('hehe');
+    Msg.parseMessage(info);
+    if (info.FromUserName === config.manager) {
+      Msg.apiCall(api, info, res);
     } else if (info.FromUserName === 'test') {
       res.reply({
         content: 'text object',
@@ -63,14 +59,7 @@ app.use('/', wechat(config, function(req, res, next) {
     } else if (info.FromUserName === 'empty') {
       res.reply('');
     } else {
-      res.reply([
-        {
-          title: 'Test中文',
-          description: 'This a sample for test日本料理',
-          picurl: 'http://img.cms.xmfish.com/data/upload/20166/file_1466650704.jpg',
-          url: 'http://nodeapi.cloudfoundry.com/'
-        }
-      ]);
+        Msg.dispatch(info.MsgType, info, res);
     }
 }));
 
